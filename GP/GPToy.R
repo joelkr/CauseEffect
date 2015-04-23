@@ -16,15 +16,15 @@ cov <- function(X1,X2, f=k, p) {
 
 gpK <- function(params, varN, x) {
   sigF <- params['sigF']
-  l2   <- params['l2']
+  lF   <- params['lF']
   sigL <- params['sigL']
-  l1   <- params['l1']
+  lL   <- params['lL']
   # Remove a and b if linear covariance is not going to be used.
-  a    <- params['a']
-  b    <- params['b']
+  #a    <- params['a']
+  #b    <- params['b']
   
   # Calculate K^-1 (K inverse)
-  K <- (cov(x, x, f=k, c(sigL, l1))) + (cov(x, x, f=k, c(sigF, l2))) + varN * diag(1, length(x))#+ cov(x, x, f=kl, c(b, a))
+  K <- (cov(x, x, f=k, c(sigL, lL))) + (cov(x, x, f=k, c(sigF, lF))) + varN * diag(1, length(x))#+ cov(x, x, f=kl, c(b, a))
 
   return(K)
 }
@@ -44,7 +44,7 @@ maxLogLik <- function(params, obs) {
 
 gpPredictEf <- function(params, obs, x_predict)  {
   K <- gpK(params=params, varN=obs$p[1], x=obs$x)
-  Kstar <- cov(x_predict, obs$x, f=k, c(params['sigL'], params['l1'])) + cov(x_predict, f=k, obs$x, c(params['sigF'], params['l2'])) #+ cov(x_predict, obs$x, f=kl, c(params['b'], params['a']))
+  Kstar <- cov(x_predict, obs$x, f=k, c(params['sigL'], params['lL'])) + cov(x_predict, f=k, obs$x, c(params['sigF'], params['lF'])) #+ cov(x_predict, obs$x, f=kl, c(params['b'], params['a']))
   Ef <- Kstar %*% solve(K, obs$y)
 
   return(Ef)
@@ -54,6 +54,8 @@ setupObs <- function(x, y, varN=0) {
   n <- length(x)
   llC <- (n/2) * log(2*pi)
   obs <- data.frame(x = x, y = y, p = rep(0, n))
+  # Sort by presumed independent variable, may want a flag to control.
+  obs <- obs[order(obs[,1]), ]
   # Experiment did not provide error estimate.
   if(varN == 0)  {
     varN <- (var(diff(sort(x))/100))
@@ -71,15 +73,16 @@ setupObs <- function(x, y, varN=0) {
 setupParams <- function(x, y, a = 0, b=0) {
   # k needs to have and estimate for l which seems to be standard deviation
   # of the sampling grid.
-  l1 <- sd(diff(sort(x))) # Local width of gaussian
+  lL <- sd(diff(sort(x))) # Local width of gaussian
   # Hopefully less than error in sampling grid_x. Must add some noise or
   # many K matrices seem to be impossible to solve.
-  if(l1 == 0) l1 <- diff(sort(x))[1]/100
+  if(lL == 0) lL <- diff(sort(x))[1]/100
   sigL <- sd(diff(sort(y))) # Local height of gaussian
   if(sigL == 0) sigL <- diff(sort(y))[1]
   sigF <- sd(y) # Global height of gaussian
-  l2 <- sd(x) # Global width of gaussian
-  params <- c(sigF = sigF, l1 = l1, sigL = sigL, l2 = l2, a=a, b=b)
+  lF <- sd(x) # Global width of gaussian
+  #params <- c(sigF = sigF, lL = lL, sigL = sigL, lF = lF, a=a, b=b)
+  params <- c(sigF = sigF, lL = lL, sigL = sigL, lF = lF)
   return(params)
 }
 
