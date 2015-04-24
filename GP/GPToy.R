@@ -32,12 +32,20 @@ gpK <- function(params, varN, x) {
 # all the data: x, y, varN,llC may need to be passed in as dataframe. 
 # Kluge: tack all the scalars down the last column and keep track of which is 
 # which. obs$p[1] == varN, obs$p[2] == llC
+# These may be right. Then need to generate each derivative K matrix.
+# partial k/p1 = 2 * p1 * exp(-0.5(Xi - Xj)^2/p2^)
+# partial k/p2 = p1^2 * exp((Xi - Xj)^2/p2)
 maxLogLik <- function(params, obs) {
 
   logLikY <- function(params, obs)  {
     K <- gpK(params=params, varN=obs$p[1], x=obs$x)
     llY <- -(0.5 * obs$y %*% solve(K, obs$y)) - (0.5 * log(abs(det(K)))) - obs$p[2]
     return(-llY)
+  }
+  grLogLikY <- function(params, obs) {
+    grad <- rep(0, length(params))
+
+    return(grad)
   }
   return(optim(par=params, logLikY, obs=obs)$par)
 }
@@ -48,6 +56,20 @@ gpPredictEf <- function(params, obs, x_predict)  {
   Ef <- Kstar %*% solve(K, obs$y)
 
   return(Ef)
+}
+
+undiscretizeX <- function(x, lL) {
+  x <- sort(x)
+  s <- lL/100
+  z <- rep(0, length(x))
+  i <- 2
+  while(i <= length(x)) {
+    if(x[i] == x[i-1]) {
+      z[i] <- z[i] + rnorm(1, 0, s)
+    }
+    i <- i+1
+  }
+  return(x + z)
 }
 
 setupObs <- function(x, y, varN=0) {
@@ -70,7 +92,8 @@ setupObs <- function(x, y, varN=0) {
   return(obs)
 }
 
-setupParams <- function(x, y, a = 0, b=0) {
+#setupParams <- function(x, y, a = 0, b=0) {
+setupParams <- function(x, y) {
   # k needs to have and estimate for l which seems to be standard deviation
   # of the sampling grid.
   lL <- sd(diff(sort(x))) # Local width of gaussian
