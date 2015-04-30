@@ -1,3 +1,5 @@
+source("setup.R")
+
 print("X -> Y")
 obs <- setupObs(edata[[1]][,1], edata[[1]][,2])
 params <- setupParams(obs$x, obs$y)

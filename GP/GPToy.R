@@ -1,6 +1,18 @@
 # Squared Error function used to calculate covariance
 k <- function(Xi,Xj, p) p[1]^2 * exp(-0.5 * abs((Xi - Xj)/ p[2])^2)
 
+# K might be calculated:
+# as.matrix(dist(x, method="euclidean", diag=TRUE))
+# This would be new cov() function
+# a^2 - 2*a*b + b^2 is less stable than (a-b)^2 because of numerical precision.
+# This means one should subtract the mean first. This shouldn't change anything
+# because squared error is independent of the mean.
+# x <- x - mean(x)
+# K <- p[1]^2 * exp(-0.5 * as.matrix(dist(xm, method="euclidean", diag=T))^2/p[2]^2)
+# Partials for parameter 1 and 2
+p1k <- function(Xi, Xj, p) 2 * p[1] * exp(-0.5 * abs((Xi - Xj)/p[2])^2)
+p2k <- function(Xi, Xj, p) p[1] ^ 2 * exp((Xi - Xj)^2/p[2]^2)*((Xi - Xj)^2/p[2]^3)
+
 # Linear covariance
 kl <- function(Xi, Xj, p) p[1]^2 + p[2] * (Xi * Xj)
 
@@ -19,6 +31,7 @@ gpK <- function(params, varN, x) {
   lF   <- params['lF']
   sigL <- params['sigL']
   lL   <- params['lL']
+#  varN <- params['varN']
   # Remove a and b if linear covariance is not going to be used.
   #a    <- params['a']
   #b    <- params['b']
@@ -29,6 +42,11 @@ gpK <- function(params, varN, x) {
   return(K)
 }
 
+gpGrad <- function(p_i, i, varN, x) {
+  if(i == 1) return(cov(x,x, f=p1k, p_i) + varN * diag(1, length(x)))
+  else if(i == 2) return(cov(x,x, f=p2k, p_i) + varN * diag(1, length(x)))
+  else return(NA)
+}
 # all the data: x, y, varN,llC may need to be passed in as dataframe. 
 # Kluge: tack all the scalars down the last column and keep track of which is 
 # which. obs$p[1] == varN, obs$p[2] == llC
@@ -39,7 +57,8 @@ maxLogLik <- function(params, obs) {
 
   logLikY <- function(params, obs)  {
     K <- gpK(params=params, varN=obs$p[1], x=obs$x)
-    llY <- -(0.5 * obs$y %*% solve(K, obs$y)) - (0.5 * log(abs(det(K)))) - obs$p[2]
+    llY <- -(0.5 * obs$y %*% solve(K, obs$y)) 
+             - (0.5 * log(abs(det(K)))) - obs$p[2]
     return(-llY)
   }
   grLogLikY <- function(params, obs) {
@@ -53,6 +72,7 @@ maxLogLik <- function(params, obs) {
 gpPredictEf <- function(params, obs, x_predict)  {
   K <- gpK(params=params, varN=obs$p[1], x=obs$x)
   Kstar <- cov(x_predict, obs$x, f=k, c(params['sigL'], params['lL'])) + cov(x_predict, f=k, obs$x, c(params['sigF'], params['lF'])) #+ cov(x_predict, obs$x, f=kl, c(params['b'], params['a']))
+  # Formula: ExpectedVal <- Kstar %*% K^-1 %*% y
   Ef <- Kstar %*% solve(K, obs$y)
 
   return(Ef)
@@ -73,6 +93,7 @@ undiscretizeX <- function(x, lL) {
 }
 
 setupObs <- function(x, y, varN=0) {
+#setupObs <- function(x, y) {
   n <- length(x)
   llC <- (n/2) * log(2*pi)
   obs <- data.frame(x = x, y = y, p = rep(0, n))
@@ -94,6 +115,7 @@ setupObs <- function(x, y, varN=0) {
 
 #setupParams <- function(x, y, a = 0, b=0) {
 setupParams <- function(x, y) {
+#setupParams <- function(x, y, varN=0) {
   # k needs to have and estimate for l which seems to be standard deviation
   # of the sampling grid.
   lL <- sd(diff(sort(x))) # Local width of gaussian
@@ -104,8 +126,19 @@ setupParams <- function(x, y) {
   if(sigL == 0) sigL <- diff(sort(y))[1]
   sigF <- sd(y) # Global height of gaussian
   lF <- sd(x) # Global width of gaussian
+  # Experiment did not provide error estimate.
+#  if(varN == 0)  {
+#    varN <- (var(diff(sort(x))/100))
+#    # Experiments sample x or t at an even interval so var is zero.
+#    if(varN == 0) {
+#      # Arbitrarily decide they can accurately measure 1/100th of the 
+#      # interval.
+#      varN <- (diff(sort(x))[1]/100)^2
+#    }
+#  }
   #params <- c(sigF = sigF, lL = lL, sigL = sigL, lF = lF, a=a, b=b)
-  params <- c(sigF = sigF, lL = lL, sigL = sigL, lF = lF)
+  params <- c(sigL = sigL, lL = lL, sigF = sigF, lF = lF)
+#  params <- c(sigL = sigL, lL = lL, sigF = sigF, lF = lF, varN=varN)
   return(params)
 }
 

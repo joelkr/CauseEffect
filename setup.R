@@ -14,18 +14,4 @@ edata <- lapply(files, function(x) read.table(x, header = FALSE))
 tEnv <- new.env()
 # Grid values to predict x on
 assign("x_predict", 0, envir = tEnv)
-params <- 0
-
-undiscretizeX <- function(x, lL) {
-  x <- sort(x)
-  s <- lL/100
-  z <- rep(0, length(x))
-  i <- 2
-  while(i <= length(x)) {
-    if(x[i] == x[i-1]) {
-      z[i] <- z[i] + rnorm(1, 0, s)
-    }
-    i <- i+1
-  }
-  return(x + z)
-}
+#params <- 0
