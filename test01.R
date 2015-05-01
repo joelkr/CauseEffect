@@ -7,7 +7,7 @@ print("Calculating optimal params")
 system.time(p2 <-  maxLogLik(params, obs))
 x_predict <- obs$x
 print("Calculating expected Y")
-EfX <- gpPredictEf(params, obs, x_predict)
+EfX <- gpPredictEf(p2, obs, x_predict)
 # Residuals with X as cause
 eX <- obs$y - EfX
 print("Y -> X")
