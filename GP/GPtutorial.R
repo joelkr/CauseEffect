@@ -11,9 +11,10 @@ y <- c(-1.4, -0.9, -0.5,   0.2,   0.5,  0.9)
 varN <- 0
 # x_predict is the sampling grid
 #x_predict <- seq(min(x), max(x), len=(10*length(x))) # Probably not right
-x_predict <- seq(min(x), max(x), len=(length(x))) # Probably not right
-x_predict <- x
 obs <- setupObs(x, y, varN)
+#x_predict <- seq(min(x), max(x), len=(length(x))) # Probably not right
+# obs is sorted on x in setupObs()
+x_predict <- obs$x
 # Get lms slope and intercept
 lm1 <- lm(obs$y ~ obs$x)
 a <- lm1$coeff[2]
