@@ -1,23 +1,25 @@
 source("setup.R")
 
 print("X -> Y")
-obs <- setupObs(edata[[1]][,1], edata[[1]][,2])
-params <- setupParams(obs$x, obs$y)
+obsX <- setupObs(edata[[1]][,1], edata[[1]][,2])
+params <- setupParams(obsX$x, obsX$y)
 print("Calculating optimal params")
-system.time(p2 <-  maxLogLik(params, obs))
-x_predict <- obs$x
-print("Calculating expected Y")
-EfX <- gpPredictEf(p2, obs, x_predict)
+system.time(p2 <-  maxLogLik(params, obsX))
+x_predict <- obsX$x
+print("Calculating expected value with X as cause: EfX")
+EfX <- gpPredictEf(p2, obsX, x_predict)
 # Residuals with X as cause
-eX <- obs$y - EfX
+print("Residuals with X as cause: eX")
+eX <- obsX$y - EfX
 print("Y -> X")
-obs <- setupObs(edata[[1]][,2], edata[[1]][,1])
-params <- setupParams(obs$x, obs$y)
+obsY <- setupObs(edata[[1]][,2], edata[[1]][,1])
+params <- setupParams(obsY$x, obsY$y)
 print("Calculating optimal params")
-system.time(p2 <-  maxLogLik(params, obs))
-x_predict <- obs$x
-print("Calculating expected Y")
-EfY <- gpPredictEf(params, obs, x_predict)
-# Residuals with X as cause
-eY <- obs$y - EfY
+system.time(p2 <-  maxLogLik(params, obsY))
+x_predict <- obsY$x
+print("Calculating expected value with Y as cause: EfY")
+EfY <- gpPredictEf(params, obsY, x_predict)
+# Residuals with Y as cause
+print("Residuals with Y as cause: eY")
+eY <- obsY$y - EfY
 

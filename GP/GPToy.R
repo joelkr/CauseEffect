@@ -1,6 +1,8 @@
 # Squared Error function used to calculate covariance
 k <- function(Xi,Xj, p) p[1]^2 * exp(-0.5 * abs((Xi - Xj)/ p[2])^2)
 
+d <- function(Xi,Xj, p=1) p * (Xi - Xj)^2
+
 # Partials for parameter 1 and 2
 p1k <- function(Xi, Xj, p) 2 * p[1] * exp(-0.5 * abs((Xi - Xj)/p[2])^2)
 p2k <- function(Xi, Xj, p) p[1] ^ 2 * exp((Xi - Xj)^2/p[2]^2)*((Xi - Xj)^2/p[2]^3)
@@ -25,13 +27,17 @@ cov <- function(X1,X2, f=k, p) {
 # This means one should subtract the mean first. This shouldn't change anything
 # because squared error is independent of the mean.
 # May need to create a different covariance function for each k function.
-cov2 <- function(X1, X2, f=k, p) {
+# This function can only be called with a single x vector
+#cov2 <- function(X1, X2, f=k, p) {
+cov2 <- function(x, p) {
   ######
   ###### Need to fix this so that it will do the right thing when X1 and X2
   # are different. dist() treats every row in a matrix as a vector and returns
   # the distance between every pair of vectors.
-  x <- X1 - mean(X1)
-  K <- p[1]^2 * exp(-0.5 * as.matrix(dist(x, method="euclidean", diag=TRUE))^2/p[2]^2)
+  x <- x - mean(x)
+  xn <- as.matrix(dist(x, method="euclidean", diag=TRUE, upper=TRUE))
+  xn <- xn^2
+  K <- p[1]^2 * exp(-0.5 * xn/p[2]^2)
   return(K)
 }
 
@@ -46,7 +52,7 @@ gpK <- function(params, varN, x) {
   #b    <- params['b']
   
   #K <- (cov(x, x, f=k, c(sigL, lL))) + (cov(x, x, f=k, c(sigF, lF))) + varN * diag(1, length(x))#+ cov(x, x, f=kl, c(b, a))
-  K <- (cov2(x, x, f=k, c(sigL, lL))) + (cov2(x, x, f=k, c(sigF, lF))) + varN * diag(1, length(x))#+ cov(x, x, f=kl, c(b, a))
+  K <- (cov2(x, c(sigL, lL))) + (cov2(x, c(sigF, lF))) + varN * diag(1, length(x))#+ cov(x, x, f=kl, c(b, a))
 
   return(K)
 }
@@ -78,10 +84,11 @@ maxLogLik <- function(params, obs) {
   return(optim(par=params, logLikY, obs=obs)$par)
 }
 
+# This uses cov() so that x_predict can be a different length than x.
 gpPredictEf <- function(params, obs, x_predict)  {
   K <- gpK(params=params, varN=obs$p[1], x=obs$x)
-  #Kstar <- cov(x_predict, obs$x, f=k, c(params['sigL'], params['lL'])) + cov(x_predict, f=k, obs$x, c(params['sigF'], params['lF'])) #+ cov(x_predict, obs$x, f=kl, c(params['b'], params['a']))
-  Kstar <- cov2(x_predict, obs$x, f=k, c(params['sigL'], params['lL'])) + cov2(x_predict, f=k, obs$x, c(params['sigF'], params['lF'])) #+ cov(x_predict, obs$x, f=kl, c(params['b'], params['a']))
+  Kstar <- cov(x_predict, obs$x, f=k, c(params['sigL'], params['lL'])) + cov(x_predict, f=k, obs$x, c(params['sigF'], params['lF'])) #+ cov(x_predict, obs$x, f=kl, c(params['b'], params['a']))
+  #Kstar <- cov2(x_predict, obs$x, f=k, c(params['sigL'], params['lL'])) + cov2(x_predict, f=k, obs$x, c(params['sigF'], params['lF'])) #+ cov(x_predict, obs$x, f=kl, c(params['b'], params['a']))
   # Formula: ExpectedVal <- Kstar %*% K^-1 %*% y
   Ef <- Kstar %*% solve(K, obs$y)
 
