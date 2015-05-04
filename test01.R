@@ -23,3 +23,9 @@ EfY <- gpPredictEf(params, obsY, x_predict)
 print("Residuals with Y as cause: eY")
 eY <- obsY$y - EfY
 
+print("Using hsic to estimate cause.")
+Cxy <- hsic(as.matrix(obsX$x), as.matrix(eX))
+
+Cyx <- hsic(as.matrix(obsY$x), as.matrix(eY))
+
+if(Cxy$pHSIC < Cyx$pHSIC) { print("Estimated X -> Y") } else if(Cyx$pHSIC < Cxy$pHSIC) { print("Estimated Y -> X") } else { print("Can't resolve cause.") }
