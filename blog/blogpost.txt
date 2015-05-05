@@ -1,0 +1,24 @@
+I read a post on slashdot about distinguishing cause from effect using observational data - sounds fascinating right? Didn't they tell you that this was impossible in statistics class? DON'T do this - bad, bad, bad... I just had to check it out. I found a link to the paper:
+
+http://arxiv.org/abs/1412.3773
+
+And after several months of working on things on and off I have some sort of result. I also now understand what a Gaussian Process is, at least sort of, though I can't make the same claim about the Hilbert-Schmidt Independence Criteria.
+
+First, let's think about what a "cause" is and how it might show up if we made some measurements of something without any idea of what was going on in the system. Let's take an example that's easily available in R:
+
+<pre>
+
+plot(pressure$temperature, pressure$pressure, col='red', xlab="Temperature (degrees C)", ylab="Pressure (mm)")
+
+</pre>
+
+This seems simple enough: the higher the temperature is, the higher the vapor pressure over the mercury gets. Suppose we knew nothing about this, and had merely received a data file of the experiment performed 10 times with not terribly accurate equipment. So something like this:
+
+<pre>
+eP <- rnorm((10 * length(pressure$temperature)), 0, (max(pressure$pressure) - min(pressure$pressure))/50)
+
+plot(rep(pressure$temperature, 10), (pressure$pressure + eP), col='red', xlab="Temperature (degrees C)", ylab="Pressure (mm)")
+
+</pre>
+
+

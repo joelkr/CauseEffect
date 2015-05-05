@@ -1,0 +1,83 @@
+---
+title: "Trying to Distinguish Causes from Effects"
+author: "Joel Kreager"
+date: "05/05/2015"
+output: html_document
+---
+
+I read a post on slashdot about distinguishing cause from effect using observational data - sounds fascinating right? Didn't they tell you that this was impossible in statistics class? DON'T do this - bad, bad, bad... I just had to check it out. I found a link to the paper: <http://arxiv.org/abs/1412.3773>
+
+And after several months of working on things on and off I have some sort of result. I also now understand what a Gaussian Process is, at least sort of, though I can't make the same claim about the Hilbert-Schmidt Independence Criteria.
+
+First, let's think about what a "cause" is and how it might show up if we made some measurements of something without any idea of what was going on in the system. Let's take an example with some data that's easily available in R:
+
+```{r echo=TRUE}
+plot(pressure$temperature, pressure$pressure, col='red', main="Temperature vs. Pressure", xlab="Temperature (degrees C)", ylab="Pressure (mm)")
+```
+
+This seems simple enough: the higher the temperature is, the higher the vapor pressure over the mercury gets. Suppose we knew nothing about this, and had merely received a data file of the experiment performed 10 times with not terribly accurate equipment. So something like this:
+```{r echo=TRUE}
+dat <- matrix(rep(0, 10*length(pressure$pressure)), nrow=length(pressure$pressure))
+for(i in 3:10) {
+  dat[,i] <- pressure$pressure + rnorm(length(pressure$pressure), 0, 20)
+}
+dat[dat<0] <- rnorm(1, 0.2, 0.01)
+dat[,1] <- pressure$temperature
+dat[,2] <- pressure$pressure
+plot(dat[,1], dat[,2], col='red', main='Temperature vs. Pressure', xlab='Temperature (degrees c)', ylab='Pressure (mm)')
+for(i in 3:10) {
+  points(dat[,1], dat[,i], col='red')
+}
+```
+
+Whatever may be going on here, we wouldn't say that the cause of the pressure or temperature was the error in our equipment. Another thing as well, even though all our temperature readings are stacked on top of each other, there is no reason to believe that there is not error in these readings as well. We just handed our trusty assistant a paper with a list of temperature readings when we wanted him to check the pressure - nothing to say the gauge is any more accurate for temperature than pressure. (This actually ends up being useful later).
+
+Now, what might "cause" be in a situation like this? Probably something like the average value of pressure obtained when we had a certain temperature reading. We need some sort of expected value function that will link pressure and temperature and will give us the expected value of pressure given a particular temperature. We might write this: **E(Y|X=x)**. Our causal relationship will be given by this function, and other discrepancies will just be noise added by our measuring apparatus.
+
+
+
+
+
+Will this be bold?
+
+Suppose we wanted to make on word **bold** and then another *italic*. Would this work?
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Will everything from here on be bold?
+-------
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+summary(cars)
+```
+
+You can also embed plots, for example:
+
+```{r, echo=FALSE}
+plot(cars)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

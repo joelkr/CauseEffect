@@ -1,0 +1,10 @@
+3. Format with knittr
+knittr is a pretty amazing package which turns R markdown files into HTML files.  There is a lot of customization possible with it and it is under active development.  I have only recently started looking into it though it seems to me to be the way to go forward. In addition, RStudio supports knittr markdown formatting.  However, it does take a few extra steps to set up but ultimately gives you more control over your final output.
+  1. Open RStudio
+  2. Select File>New>R Markdown
+  3. Paste your code between ```{r} and ``` and structure appropriately.
+  4. Specify formatting of your posts as you see fit. There are a lot of great options.  Images will be embedded directly into the HTML document.  This is a pretty amazing feature since it means your file will not require any external dependencies.
+  5. Click Knit HTML. This should create an HTML document identical of the same name as the Rmd file.
+  6. Edit the generated HTML file.
+  7. You may need to remove the ccs classes h1 through h6 as they can interfere with your blogger theme's css classes of the same name.  You may also need to remove the markdown titled identified as <h1> (around line 150-200) if you are going to input your post title in the default blogger title position (which is recommended).
+  8. Copy you edited HTML code into blogger.
