@@ -32,52 +32,257 @@ for(i in 3:10) {
 
 Whatever may be going on here, we wouldn't say that the cause of the pressure or temperature was the error in our equipment. Another thing as well, even though all our temperature readings are stacked on top of each other, there is no reason to believe that there is not error in these readings as well. We just handed our trusty assistant a paper with a list of temperature readings when we wanted him to check the pressure - nothing to say the gauge is any more accurate for temperature than pressure. (This actually ends up being useful later).
 
-Now, what might "cause" be in a situation like this? Probably something like the average value of pressure obtained when we had a certain temperature reading. We need some sort of expected value function that will link pressure and temperature and will give us the expected value of pressure given a particular temperature. We might write this: **E(Y|X=x)**. Our causal relationship will be given by this function, and other discrepancies will just be noise added by our measuring apparatus.
+Now, what might "cause" be in a situation like this? Probably something like the average value of pressure obtained when we had a certain temperature reading. We need some sort of expected value function that will link pressure and temperature and will give us the expected value of pressure given a particular temperature. We might write this: **E(Y|X=x)**. Our causal relationship will be given by this function, and other discrepancies will just be noise added by our measuring apparatus. Now for the basic idea of an additive noise model, at least as I am understanding it. If we had a good expected value function, one that accurately followed the data without imposing some shape on it, and used it to project our **Y** values, this should be a good model of our cause. When we subtract our expected **Y** values from the actual, we should have removed the cause and be left with just the noise. This means that the residuals in **Y** should be independent from the original input in **X**. If we model the system using our regression method with **X** causing **Y** and then again with **Y** causing **X**, whichever has the score most indicating independence of the residuals from the input should be the cause. It would, of course, greatly help if we knew one or the other of the two factors was a cause, but merely were unsure of which.
 
+Now there merely remains the matter of choosing a particular regression method, and some method of scoring the independence of two set of data. The regression method can't have some shape which it insists on imposing on data, for instance a line, and similarly for the measure of independence. In the paper the authors settle on using a Gaussian Process for the regression method, and the Hilbert-Schmidt Indepence Criteria as a test of independence, though they also test a number of entropy based independence measures as well. One could just use the gptk package for the Gaussian Process part of this method, but I was determined to develop some understanding of what a Gaussian Process was so I followed this tutorial: [Pdf -Gaussian Processes for Regression - Oxford Robotics ...](http://www.robots.ox.ac.uk/~mebden/reports/GPtutorial.pdf), and this tutorial for some ideas of R code: [Gaussian Process Regression with R - R-bloggers](http://www.r-bloggers.com/gaussian-process-regression-with-r/).
 
+What might this Gaussian Process thing be? In the case of our demonstration data set of pressure vs. temperature, we begin with our **X** data, and then produce our estimated **Y** by pulling from a 19 dimensional Gaussian distribution. The mean of this 19 dimensional Gaussian will be our expected value function. We need some method which we can use to determine how wide our Gaussian will be in each of the 19 dimensions, (one for each measurement in our original data). Everyone's favorite measure of how much each $x_i$ pulls on every other is Squared Exponential Error. In R this looks like:
 
+```{r echo=TRUE}
+k <- function(Xi,Xj, p) p[1] * exp(-0.5 * (Xi - Xj) ^2 / p[2]^2)
+```
 
+We run this function over the Cartesian product of our *x* values with themselves to generate a covariance matrix K. (*p* is a vector of our parameters $sigma_f$ and *l*. We make an estimate of $sigma_f$ from the range of our *y* values, and the spacing of our *x* values for *l*, but later run everything through optim() to improve our guess). An easily understood, but bad form R version of our covariance function looks like this:
+
+```{r echo=TRUE}
+cov <- function(X1,X2, f=k, p) {
+  Sigma <- matrix(rep(0, length(X1)*length(X2)), nrow=length(X1))
+  for (i in 1:nrow(Sigma)) {
+    for (j in 1:ncol(Sigma)) {
+      Sigma[i,j] <- f(X1[i], X2[j], p)
+    }
+  }
+  return(Sigma)
+}
+```
+
+This function produces the **K** matrix which is then used to produce an expected value function. To do this we first need a collection of points on $x$ on which we wish to make an estimate of $y$. We will call this collection of points $x_*$, and we will just use the same values we measured $x$ and $y$ at, since we are looking for residuals rather than estimating values. We will use $x_*$ to produce a $K_*$ matrix. This will be a square matrix in the given case, but can be rectangular, depending on the range one wants to estimate, and thus the cov() function above which allows this. (My matrix wrangling skills in R are not what they could be).
+The formula works like this:
+$$K_* = cov(x_*, x)$$
+$$\bar{y} = K_*K^{-1} y$$
+You might think of rendering this:
+```
+Ef <- Kstar %*% solve(K) %*% y
+```
+in R, but this will not make you happy. Documentation says that inverting a matrix directly tends to be unstable, and they are not lying. Better to try:
+```
+Ef <- Kstar %*% solve(K, obs$y)
+```
+
+Now, to get anywhere with this, our **K** matrix needs to be invertible, and it usually won't be with data like our example, since it will have linearly dependent columns. We need to add noise to our covariance matrix over $x$. We can make a good argument that there is probably noise in $x$ as well as $y$, but how much? I searched, but I didn't find anything that seemed particularly useful, so I just ended up writing code to make a guestimate. Our calculation for K will now end up:
+```
+K <- (cov(x, c(sigmaLocal, lLocal))) + (cov(x, c(sigFunction, lFunction))) + varN * diag(1, length(x))
+```
+varN is sigma^2 for noise, which I estimated by taking 1/100 of the spacing between x points. The covariance function is called twice, once with an estimate of local variances, and next with an estimate of global variances. This is then fed to optim() to tune these parameters using a formula for log likelihood given in the Gaussian Process tutorial I listed above. I cheat and use the dist() function to create the covariance matrix as long as the data is square, as this is *much* faster. Here is my current code:
+``` {r echo=TRUE}
+# Squared Error function used to calculate covariance
+k <- function(Xi,Xj, p) p[1]^2 * exp(-0.5 * abs((Xi - Xj)/ p[2])^2)
+
+cov <- function(X1,X2, f=k, p) {
+  Sigma <- matrix(rep(0, length(X1)*length(X2)), nrow=length(X1))
+  for (i in 1:nrow(Sigma)) {
+    for (j in 1:ncol(Sigma)) {
+      Sigma[i,j] <- f(X1[i], X2[j], p)
+    }
+  }
+  return(Sigma)
+}
+cov2 <- function(x, p) {
+  x <- x - mean(x)
+  xn <- as.matrix(dist(x, method="euclidean", diag=TRUE, upper=TRUE))
+  xn <- xn^2
+  K <- p[1]^2 * exp(-0.5 * xn/p[2]^2)
+  return(K)
+}
+gpK <- function(params, varN, x) {
+  sigF <- params['sigF']
+  lF   <- params['lF']
+  sigL <- params['sigL']
+  lL   <- params['lL']
+  K <- (cov2(x, c(sigL, lL))) + (cov2(x, c(sigF, lF))) + varN * diag(1, length(x))
+
+  return(K)
+}
+maxLogLik <- function(params, obs) {
+
+  logLikY <- function(params, obs)  {
+    K <- gpK(params=params, varN=obs$p[1], x=obs$x)
+    llY <- -(0.5 * obs$y %*% solve(K, obs$y)) 
+             - (0.5 * log(abs(det(K)))) - obs$p[2]
+    return(-llY)
+  }
+  return(optim(par=params, logLikY, obs=obs)$par)
+}
+
+# This uses cov() so that x_predict can be a different length than x.
+gpPredictEf <- function(params, obs, x_predict)  {
+  K <- gpK(params=params, varN=obs$p[1], x=obs$x)
+  Kstar <- cov(x_predict, obs$x, f=k, c(params['sigL'], params['lL'])) + cov(x_predict, f=k, obs$x, c(params['sigF'], params['lF'])) 
+  # Formula: ExpectedVal <- Kstar %*% K^-1 %*% y
+  Ef <- Kstar %*% solve(K, obs$y)
+  return(Ef)
+}
+
+setupObs <- function(x, y, varN=0) {
+  n <- length(x)
+  llC <- (n/2) * log(2*pi)
+  obs <- data.frame(x = x, y = y, p = rep(0, n))
+  # Sort by presumed independent variable
+  obs <- obs[order(obs[,1]), ]
+  # Experiment did not provide error estimate.
+  if(varN == 0)  {
+    varN <- (var(diff(sort(x))/100))
+    # Experiments often sample x or t at an even interval.
+    if(varN == 0) {
+      varN <- (diff(sort(x))[1]/100)^2
+    }
+  }
+  # Must do this AFTER sorting and scaling
+  obs$p[1] <- varN
+  obs$p[2] <- llC
+  return(obs)
+}
+
+setupParams <- function(x, y) {
+  # k needs to have and estimate for l which seems to be standard deviation
+  # of the sampling grid.
+  lL <- sd(diff(sort(x))) # Local width of gaussian
+  # Hopefully less than error in sampling grid_x. Must add some noise or
+  # many K matrices seem to be impossible to solve.
+  if(lL == 0) lL <- diff(sort(x))[1]/100
+  sigL <- sd(diff(sort(y))) # Local height of gaussian
+  if(sigL == 0) sigL <- diff(sort(y))[1]
+  sigF <- sd(y) # Global height of gaussian
+  lF <- sd(x) # Global width of gaussian
+  params <- c(sigL = sigL, lL = lL, sigF = sigF, lF = lF)
+#  params <- c(sigL = sigL, lL = lL, sigF = sigF, lF = lF, varN=varN)
+  return(params)
+}
+```
+
+After all of that, one more heap of code that is necessary to tell us how independent our residuals eY are from our iput X. This method is based on the Hilbert-Schmidt norm, which is evidently an extension of the Froebenius norm. In the MATLAB code which implement the experiment in the paper, they flipped the sign of the HSIC score, but kept the sign of the pHSIC value. The idea of scoring with this method was that whichever input had the lowest score, (either pHSIC or HSIC), was the likely cause. That's about all I can say, my Linear Algebra knowledge is not up to giving a good description of what they are doing here.
+
+```{r echo=TRUE}
+# Translated from MATLAB code written by:
+# Joris Mooij  <j.m.mooij@uva.nl>
+# https://staff.fnwi.uva.nl/j.m.mooij/
+require(pracma)
+
+hsic <- function(X, Y, sX=0, sY=0) {
+  N <- dim(X)[1]
+  if(dim(X)[2] > 1 || dim(Y)[2] > 1) {
+    print("Only column vectors for now")
+    return(0)
+  }
+  if(dim(Y)[1] != N) {
+    print("X and Y must have same number of rows")
+    return(0)
+  }
+  if(sX == 0) {
+    sX <- guess_sigma(X)
+  }
+  if(sY == 0) {
+    sY <- guess_sigma(Y)
+  }
+  KX <- rbfkernel(X, sX)
+  KY <- rbfkernel(Y, sY)
+
+  H <- eye(N) - (1/N) * ones(N)
+  KXbar <- H %*% KX %*% H
+  KYbar <- H %*% KY %*% H
+
+  HSIC <- 1/(N^2) * sum(diag(KXbar %*% KY))
+
+  # calculate sums of kernel matrices
+  KX_sum <- sum(KX)
+  KY_sum <- sum(KY)
+
+  # calculate statistics for gamma approximation
+  x_mu <- 1.0 / (N * (N-1)) * (KX_sum - N)
+  y_mu <- 1.0 / (N * (N-1)) * (KY_sum - N)
+  mean_H0 <- (1.0 + x_mu * y_mu - x_mu - y_mu) / N
+  var_H0 <- (2.0 * (N-4) * (N-5)) / (N * (N-1.0) * (N-2) * (N-3) * ((N-1)^4)) * sum(diag(KXbar %*% KX)) * sum(diag(KYbar %*% KY))
+
+  #cat("x_mu: ", x_mu, "y_mu: ", y_mu, "mean_H0: ", mean_H0, "var_H0: ", var_H0, "\n")
+
+  # calculate p-value under gamma approximation
+  a <- mean_H0 * mean_H0 /var_H0
+  b <- N * var_H0 / mean_H0
+  pHSIC <- pgamma(N * HSIC / b, a, lower=FALSE)
+  cat("N: ", N, "a: ", a, "b: ", b, "pHSIC: ", pHSIC, "\n")
+
+  rv <- list()
+  rv[["pHSIC"]] <- pHSIC
+  rv[["HSIC"]] <- HSIC
+  return(rv)
+
+}
+
+rbfkernel <- function(X, sigma) {
+  # Make this work for vectors only for the moment.
+  N <- dim(X)[1]
+  d <- dim(X)[2]
+
+  if(d > 1) {
+    print("Only column vectors for now")
+    return(0)
+  }
+  else {
+    K <- (repmat(X,1,N) - repmat(t(X),N,1))^2
+  }
+  K <- exp(-K / (2.0 * sigma^2))
+  return(K)
+}
+
+guess_sigma <- function(X, method=0) {
+  if (method == 0) {
+    Xnorm <- get_norm(X)
+    # ?
+    #Xnorm <- Xnorm - tril(Xnorm)
+    # Try this:
+    Xnorm[lower.tri(Xnorm, diag = TRUE)] <- 0
+    #Xnorm <- matrix(Xnorm, dim(X)[1]^2, 1)
+    #sigma <- sqrt(0.5 * median(Xnorm[Xnorm > 0]))
+    # And this ( skip the reshaping)
+    sigma <- sqrt(0.5 * median(Xnorm[Xnorm > 0]))
+  }
+  else if(method == 1){
+    Xnorm <- get_norm(X)
+    sigma <- sqrt(0.5*median(Xnorm))
+  }
+  else if(method == 2) {
+    #sigma = exp(fminsearch(@(logh) kernel_LOO(exp(logh),X),0.0));
+    print("Not implemented yet.")
+    sigma <- NA
+  }
+  return(sigma)
+}
+
+get_norm <- function(A) {
+  # A must be promoted to matrix
+  lenA <- dim(A)[1]
+  result <- zeros(lenA, lenA)
+    for(i1 in 1:(lenA-1)) {
+      for(i2 in (i1+1):lenA) {
+        result[i1, i2] <- sum((A[i1,] - A[i2,])^2)
+        #cat("result[", i1, ",", i2, "]: ", result[i1, i2], "\n")
+        result[i2, i1] <- result[i1, i2]
+      }
+    }
+  return(result)
+}
+```
+
+Let's test things out with the first data set used in the paper:
+```{r echo=TRUE}
+if(! file.exists("pair0001.txt")) {
+  URL="http://webdav.tuebingen.mpg.de/cause-effect/pair0001.txt"
+  download.file(URL, destfile="./pair0001.txt", method="curl")
+}
+
+dat <- read.table("./pair0001.txt", header=FALSE)
+head(dat)
+```
 
 Will this be bold?
 
-Suppose we wanted to make on word **bold** and then another *italic*. Would this work?
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-Will everything from here on be bold?
--------
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r}
-summary(cars)
-```
-
-You can also embed plots, for example:
-
-```{r, echo=FALSE}
-plot(cars)
-```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

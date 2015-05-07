@@ -1,22 +1,7 @@
+# Translated from MATLAB code written by:
+# Joris Mooij  <j.m.mooij@uva.nl>
+# https://staff.fnwi.uva.nl/j.m.mooij/
 require(pracma)
-
-#zeros <- function(n, m) {
-#  return(matrix(0, n, m))
-#}
-#ones <- function(n, m) {
-#  return(matrix(1, n, m))
-#}
-
-# lower.tri(x, diag = FALSE)
-# upper.tri(x, diag = FALSE)
-# ex:
-# m2 <- matrix(1:20, 4, 5)
-# lower.tri(m2) # Returns matrix of booleans
-# m2[lower.tri(m2)] <- NA
-#tril <- function(X) {
-#  X[upper.tri(X)] <- 0
-#  return(X)
-#}
 
 hsic <- function(X, Y, sX=0, sY=0) {
   N <- dim(X)[1]
@@ -53,7 +38,7 @@ hsic <- function(X, Y, sX=0, sY=0) {
   mean_H0 <- (1.0 + x_mu * y_mu - x_mu - y_mu) / N
   var_H0 <- (2.0 * (N-4) * (N-5)) / (N * (N-1.0) * (N-2) * (N-3) * ((N-1)^4)) * sum(diag(KXbar %*% KX)) * sum(diag(KYbar %*% KY))
 
-  cat("x_mu: ", x_mu, "y_mu: ", y_mu, "mean_H0: ", mean_H0, "var_H0: ", var_H0, "\n")
+  #cat("x_mu: ", x_mu, "y_mu: ", y_mu, "mean_H0: ", mean_H0, "var_H0: ", var_H0, "\n")
 
   # calculate p-value under gamma approximation
   a <- mean_H0 * mean_H0 /var_H0
